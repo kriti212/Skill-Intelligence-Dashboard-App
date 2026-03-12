@@ -15,7 +15,7 @@ threshold = st.sidebar.slider("Skill Frequency Threshold", min_value=1, max_valu
 
 @st.cache_data
 def load_data():
-    return data_processor.process_logs("status_updates_20260306_202707-1.csv")
+    return data_processor.process_logs("activity_log.csv")
 
 skill_counts = load_data()
 grouped_data = skill_grouper.group_skills(skill_counts, threshold)

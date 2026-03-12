@@ -61,5 +61,5 @@ def process_logs(csv_path):
     return dict(skill_counts)
 
 if __name__ == "__main__":
-    counts = process_logs("status_updates_20260306_202707-1.csv")
+    counts = process_logs("activity_log.csv")
     print("Extracted Skills:", counts)
