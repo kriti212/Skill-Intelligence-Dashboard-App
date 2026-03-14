@@ -129,7 +129,7 @@ project_root/
 ├── data_processor.py           # NLP and Regex extraction layer
 ├── skill_grouper.py            # Hierarchical mapping logic
 ├── requirements.txt            # Dependency definitions
-├── status_updates_...csv       # Sample user activity dataset
+├── activity_log.csv            # Sample user activity dataset
 ├── backend/
 │   └── dataset_ingestion.py    # IO helpers and normalization
 ├── docs/                       # Technical architecture documentation
