@@ -1,0 +1,106 @@
+import pandas as pd
+import spacy
+import re
+from collections import Counter
+from backend.dataset_ingestion import load_dataset
+
+# Try loading spacy, fallback to simple regex if missing
+# Note: spaCy is optional and not strictly required for the core regex-based keyword extraction.
+try:
+    nlp = spacy.load("en_core_web_sm")
+except OSError:
+    nlp = None
+
+SKILL_HIERARCHY = {
+    "Large Language Models": ["qwen", "gemma", "gpt", "chatgpt", "bert", "transformers", "llm"],
+    "Model Optimization": ["quantization", "int8", "fp16", "lora", "dpo", "finetuning"],
+    "Prompt Engineering": ["prompting", "few-shot", "zero-shot", "chain-of-thought", "cot"],
+    "Evaluation Metrics": ["llm judge", "f1 score", "ner", "ontonotes5", "ontonotes"],
+    "Infrastructure Tools": ["colab", "gpu", "t4 gpu", "huggingface", "python", "streamlit", "react"],
+    "Science and Math": ["kinematics", "calculus", "arithmetic", "physics"]
+}
+
+# Flatten for extraction
+ALL_SKILLS = set()
+for parent, children in SKILL_HIERARCHY.items():
+    ALL_SKILLS.add(parent.lower())
+    for child in children:
+        ALL_SKILLS.add(child.lower())
+
+# Sort skills by length descending to match longest phrases first (e.g. "llm judge" before "llm")
+# This is computed once globally instead of inside the extraction loop for performance.
+SORTED_SKILLS = sorted(list(ALL_SKILLS), key=len, reverse=True)
+
+def extract_skills_from_text(text):
+    if pd.isna(text):
+        return []
+    
+    text = str(text).lower()
+    found_skills = []
+    
+    # Simple regex based matching for exact phrases
+    
+    # We replace found skills with spaces so we don't double count "llm" inside "llm judge"
+    for skill in SORTED_SKILLS:
+        pattern = r'\b' + re.escape(skill) + r'\b'
+        matches = re.findall(pattern, text)
+        if matches:
+            found_skills.extend([skill] * len(matches))
+            text = re.sub(pattern, ' ', text)
+            
+    return found_skills
+
+def extract_skills(df):
+    text_cols = ['tasks_completed', 'next_tasks', 'notes', 'project_title']
+    user_cols = ['intern_name', 'user_name', 'author', 'name', 'user', 'intern', 'email']
+    user_col = next((col for col in user_cols if col in df.columns), None)
+    
+    all_extracted = []
+    by_user = {}
+    
+    for idx, row in df.iterrows():
+        row_skills = []
+        for col in text_cols:
+            if col in df.columns and not pd.isna(row[col]):
+                row_skills.extend(extract_skills_from_text(row[col]))
+                
+        all_extracted.extend(row_skills)
+        
+        if user_col and not pd.isna(row[user_col]):
+            username = str(row[user_col]).strip().title()
+            if username not in by_user:
+                by_user[username] = []
+            by_user[username].extend(row_skills)
+                
+    skill_counts = dict(Counter(all_extracted))
+    user_counts = {u: dict(Counter(skills)) for u, skills in by_user.items()}
+    
+    return {
+        "aggregated": skill_counts,
+        "by_user": user_counts
+    }
+
+def process_dataset(data):
+    """
+    Main processing entry point.
+
+    Accepts either:
+    - a pandas DataFrame
+    - a dataset file path
+
+    This enables the system to support both local CSV files and
+    uploaded datasets from the Streamlit UI.
+    """
+    if isinstance(data, pd.DataFrame):
+        df = data
+    else:
+        df = load_dataset(data)
+    
+    return extract_skills(df)
+
+def process_logs(file_path="activity_log.csv"):
+    return process_dataset(file_path)
+
+if __name__ == "__main__":
+    counts = process_logs("activity_log.csv")
+    print("Extracted Skills:", counts)
